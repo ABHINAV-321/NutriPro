@@ -7,6 +7,7 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Legacy API request function that returns Response
 export async function apiRequest(
   method: string,
   url: string,
@@ -21,6 +22,24 @@ export async function apiRequest(
 
   await throwIfResNotOk(res);
   return res;
+}
+
+// Generic API request function that returns parsed JSON
+export async function apiRequestJson<T>(options: {
+  url: string;
+  method: string;
+  body?: unknown;
+}): Promise<T> {
+  const { url, method, body } = options;
+  const res = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return await res.json() as T;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

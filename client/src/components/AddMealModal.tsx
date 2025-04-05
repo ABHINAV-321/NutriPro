@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useUser } from "@/contexts/UserContext";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, apiRequestJson } from "@/lib/queryClient";
 import { Camera } from "@/components/ui/camera";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FoodItem } from "@/types";
+import { FoodItem, FoodRecognitionResult } from "@/types";
 
 interface AddMealModalProps {
   isOpen: boolean;
@@ -91,17 +91,21 @@ export default function AddMealModal({ isOpen, onClose, mealType }: AddMealModal
     mutationFn: async (food: FoodItem) => {
       if (!user?.id || !mealType) throw new Error("User or meal type not set");
       
-      return apiRequest("POST", "/api/food-entries", {
-        userId: user.id,
-        name: food.name,
-        calories: food.calories,
-        protein: food.protein,
-        carbs: food.carbs,
-        fat: food.fat,
-        mealType: mealType,
-        servingSize: food.servingSize,
-        servingUnit: food.servingUnit,
-        imageUrl: food.imageUrl
+      return apiRequestJson({
+        url: "/api/food-entries",
+        method: "POST",
+        body: {
+          userId: user.id,
+          name: food.name,
+          calories: food.calories,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+          mealType: mealType,
+          servingSize: food.servingSize,
+          servingUnit: food.servingUnit,
+          imageUrl: food.imageUrl
+        }
       });
     },
     onSuccess: () => {
@@ -129,13 +133,16 @@ export default function AddMealModal({ isOpen, onClose, mealType }: AddMealModal
     
     setIsSearching(true);
     try {
-      const response = await apiRequest("POST", "/api/food-nutrition", {
-        foodName: searchQuery
+      const foodItem = await apiRequestJson<FoodItem>({
+        url: "/api/food-nutrition",
+        method: "POST",
+        body: {
+          foodName: searchQuery
+        }
       });
       
-      const data = await response.json();
-      if (data) {
-        setSearchResults([data]);
+      if (foodItem) {
+        setSearchResults([foodItem]);
       } else {
         setSearchResults([]);
         toast({
@@ -166,14 +173,52 @@ export default function AddMealModal({ isOpen, onClose, mealType }: AddMealModal
   };
   
   // Handle camera capture
-  const handleCameraCapture = (imageData: string) => {
+  const handleCameraCapture = async (imageData: string) => {
     setIsCameraOpen(false);
-    // We would process the image with the API here
-    // and add detected foods, but for now we'll just show a success message
-    toast({
-      title: "Image captured",
-      description: "Processing food image...",
-    });
+    
+    try {
+      // Extract the base64 data (remove data:image/jpeg;base64, prefix)
+      const base64Image = imageData.split(',')[1];
+      
+      // Show loading toast
+      toast({
+        title: "Image received",
+        description: "Analyzing your food with AI...",
+      });
+      
+      // Send the image to the server for AI analysis
+      const response = await apiRequestJson<FoodRecognitionResult>({
+        url: '/api/analyze-food-image',
+        method: 'POST',
+        body: { image: base64Image }
+      });
+      
+      if (response.success && response.items && response.items.length > 0) {
+        // Add each detected food item
+        for (const item of response.items) {
+          addFoodMutation.mutate(item);
+        }
+        
+        // Show success toast
+        toast({
+          title: "Food detected!",
+          description: `Found ${response.items.length} food item${response.items.length > 1 ? 's' : ''}`,
+        });
+      } else {
+        // Show warning if no foods detected
+        toast({
+          title: "No food detected",
+          description: "Try taking a clearer photo or adding food manually",
+        });
+      }
+    } catch (error) {
+      console.error("Error analyzing food image:", error);
+      toast({
+        title: "Analysis failed",
+        description: "Could not analyze food image. Please try again or add manually.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Add food from search results
