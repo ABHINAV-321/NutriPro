@@ -6,6 +6,8 @@ import {
   workoutEntries, WorkoutEntry, InsertWorkoutEntry,
   coachMessages, CoachMessage, InsertCoachMessage
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -41,202 +43,8 @@ export interface IStorage {
   resetUserData(userId: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private weightLogs: Map<number, WeightLog>;
-  private foodEntries: Map<number, FoodEntry>;
-  private waterEntries: Map<number, WaterEntry>;
-  private workoutEntries: Map<number, WorkoutEntry>;
-  private coachMessages: Map<number, CoachMessage>;
-  
-  private currentUserId: number;
-  private currentWeightLogId: number;
-  private currentFoodEntryId: number;
-  private currentWaterEntryId: number;
-  private currentWorkoutEntryId: number;
-  private currentCoachMessageId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.weightLogs = new Map();
-    this.foodEntries = new Map();
-    this.waterEntries = new Map();
-    this.workoutEntries = new Map();
-    this.coachMessages = new Map();
-    
-    this.currentUserId = 1;
-    this.currentWeightLogId = 1;
-    this.currentFoodEntryId = 1;
-    this.currentWaterEntryId = 1;
-    this.currentWorkoutEntryId = 1;
-    this.currentCoachMessageId = 1;
-    
-    // Add a demo user
-    this.createUser({
-      username: "demo",
-      password: "password",
-      name: "Jessica",
-      age: 30,
-      gender: "female",
-      height: 165,
-      weight: 68.5,
-      goalWeight: 65,
-      activityLevel: "moderate",
-      goal: "lose",
-      dailyCalorieTarget: 1800,
-      proteinTarget: 90,
-      carbTarget: 200,
-      fatTarget: 60,
-      waterTarget: 2500
-    });
-  }
-
-  // User methods
-  async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const now = new Date();
-    const user: User = { ...insertUser, id, createdAt: now };
-    this.users.set(id, user);
-    return user;
-  }
-  
-  async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-    
-    const updatedUser = { ...user, ...userData };
-    this.users.set(id, updatedUser);
-    return updatedUser;
-  }
-  
-  // Weight log methods
-  async createWeightLog(insertWeightLog: InsertWeightLog): Promise<WeightLog> {
-    const id = this.currentWeightLogId++;
-    const now = new Date();
-    const weightLog: WeightLog = { ...insertWeightLog, id, date: now };
-    this.weightLogs.set(id, weightLog);
-    return weightLog;
-  }
-  
-  async getWeightLogsByUserId(userId: number): Promise<WeightLog[]> {
-    return Array.from(this.weightLogs.values())
-      .filter(log => log.userId === userId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  
-  // Food entry methods
-  async createFoodEntry(insertFoodEntry: InsertFoodEntry): Promise<FoodEntry> {
-    const id = this.currentFoodEntryId++;
-    const now = new Date();
-    const foodEntry: FoodEntry = { ...insertFoodEntry, id, date: now };
-    this.foodEntries.set(id, foodEntry);
-    return foodEntry;
-  }
-  
-  async getFoodEntriesByUserId(userId: number): Promise<FoodEntry[]> {
-    return Array.from(this.foodEntries.values())
-      .filter(entry => entry.userId === userId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  
-  async getFoodEntriesByUserIdAndDate(userId: number, date: Date): Promise<FoodEntry[]> {
-    return Array.from(this.foodEntries.values())
-      .filter(entry => entry.userId === userId && this.isSameDay(new Date(entry.date), date))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-  
-  // Water entry methods
-  async createWaterEntry(insertWaterEntry: InsertWaterEntry): Promise<WaterEntry> {
-    const id = this.currentWaterEntryId++;
-    const now = new Date();
-    const waterEntry: WaterEntry = { ...insertWaterEntry, id, date: now };
-    this.waterEntries.set(id, waterEntry);
-    return waterEntry;
-  }
-  
-  async getWaterEntriesByUserId(userId: number): Promise<WaterEntry[]> {
-    return Array.from(this.waterEntries.values())
-      .filter(entry => entry.userId === userId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  
-  async getWaterEntriesByUserIdAndDate(userId: number, date: Date): Promise<WaterEntry[]> {
-    return Array.from(this.waterEntries.values())
-      .filter(entry => entry.userId === userId && this.isSameDay(new Date(entry.date), date))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-  
-  // Workout entry methods
-  async createWorkoutEntry(insertWorkoutEntry: InsertWorkoutEntry): Promise<WorkoutEntry> {
-    const id = this.currentWorkoutEntryId++;
-    const now = new Date();
-    const workoutEntry: WorkoutEntry = { ...insertWorkoutEntry, id, date: now };
-    this.workoutEntries.set(id, workoutEntry);
-    return workoutEntry;
-  }
-  
-  async getWorkoutEntriesByUserId(userId: number): Promise<WorkoutEntry[]> {
-    return Array.from(this.workoutEntries.values())
-      .filter(entry => entry.userId === userId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  
-  async getWorkoutEntriesByUserIdAndDate(userId: number, date: Date): Promise<WorkoutEntry[]> {
-    return Array.from(this.workoutEntries.values())
-      .filter(entry => entry.userId === userId && this.isSameDay(new Date(entry.date), date))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-  
-  // Coach message methods
-  async createCoachMessage(insertCoachMessage: InsertCoachMessage): Promise<CoachMessage> {
-    const id = this.currentCoachMessageId++;
-    const now = new Date();
-    const coachMessage: CoachMessage = { ...insertCoachMessage, id, date: now };
-    this.coachMessages.set(id, coachMessage);
-    return coachMessage;
-  }
-  
-  async getCoachMessagesByUserId(userId: number): Promise<CoachMessage[]> {
-    return Array.from(this.coachMessages.values())
-      .filter(message => message.userId === userId)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-  
-  // Reset user data
-  async resetUserData(userId: number): Promise<void> {
-    // Remove all entries for this user
-    Array.from(this.weightLogs.entries())
-      .filter(([_, log]) => log.userId === userId)
-      .forEach(([id, _]) => this.weightLogs.delete(id));
-      
-    Array.from(this.foodEntries.entries())
-      .filter(([_, entry]) => entry.userId === userId)
-      .forEach(([id, _]) => this.foodEntries.delete(id));
-      
-    Array.from(this.waterEntries.entries())
-      .filter(([_, entry]) => entry.userId === userId)
-      .forEach(([id, _]) => this.waterEntries.delete(id));
-      
-    Array.from(this.workoutEntries.entries())
-      .filter(([_, entry]) => entry.userId === userId)
-      .forEach(([id, _]) => this.workoutEntries.delete(id));
-      
-    Array.from(this.coachMessages.entries())
-      .filter(([_, message]) => message.userId === userId)
-      .forEach(([id, _]) => this.coachMessages.delete(id));
-  }
-  
-  // Helper methods
+export class DatabaseStorage implements IStorage {
+  // Helper method to check if two dates are on the same day
   private isSameDay(date1: Date, date2: Date): boolean {
     return (
       date1.getFullYear() === date2.getFullYear() &&
@@ -244,6 +52,217 @@ export class MemStorage implements IStorage {
       date1.getDate() === date2.getDate()
     );
   }
+
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    // Check if this is first app run and add a demo user
+    const existingUsers = await db.select({ count: sql<number>`count(*)` }).from(users);
+    
+    if (existingUsers[0].count === 0 && insertUser.username !== 'demo') {
+      // Add a demo user if there are no users yet
+      await db.insert(users).values({
+        username: "demo",
+        password: "password",
+        name: "Jessica",
+        age: 30,
+        gender: "female",
+        height: 165,
+        weight: 68.5,
+        goalWeight: 65,
+        activityLevel: "moderate",
+        goal: "lose",
+        dailyCalorieTarget: 1800,
+        proteinTarget: 90,
+        carbTarget: 200,
+        fatTarget: 60,
+        waterTarget: 2500
+      });
+    }
+    
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
+    
+    return updatedUser;
+  }
+
+  // Weight log methods
+  async createWeightLog(insertWeightLog: InsertWeightLog): Promise<WeightLog> {
+    const [weightLog] = await db
+      .insert(weightLogs)
+      .values(insertWeightLog)
+      .returning();
+    
+    return weightLog;
+  }
+
+  async getWeightLogsByUserId(userId: number): Promise<WeightLog[]> {
+    return await db
+      .select()
+      .from(weightLogs)
+      .where(eq(weightLogs.userId, userId))
+      .orderBy(sql`${weightLogs.date} DESC`);
+  }
+
+  // Food entry methods
+  async createFoodEntry(insertFoodEntry: InsertFoodEntry): Promise<FoodEntry> {
+    const [foodEntry] = await db
+      .insert(foodEntries)
+      .values(insertFoodEntry)
+      .returning();
+    
+    return foodEntry;
+  }
+
+  async getFoodEntriesByUserId(userId: number): Promise<FoodEntry[]> {
+    return await db
+      .select()
+      .from(foodEntries)
+      .where(eq(foodEntries.userId, userId))
+      .orderBy(sql`${foodEntries.date} DESC`);
+  }
+
+  async getFoodEntriesByUserIdAndDate(userId: number, date: Date): Promise<FoodEntry[]> {
+    // PostgreSQL date truncation to match the day
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return await db
+      .select()
+      .from(foodEntries)
+      .where(
+        and(
+          eq(foodEntries.userId, userId),
+          sql`${foodEntries.date} >= ${startDate} AND ${foodEntries.date} <= ${endDate}`
+        )
+      )
+      .orderBy(sql`${foodEntries.date} ASC`);
+  }
+
+  // Water entry methods
+  async createWaterEntry(insertWaterEntry: InsertWaterEntry): Promise<WaterEntry> {
+    const [waterEntry] = await db
+      .insert(waterEntries)
+      .values(insertWaterEntry)
+      .returning();
+    
+    return waterEntry;
+  }
+
+  async getWaterEntriesByUserId(userId: number): Promise<WaterEntry[]> {
+    return await db
+      .select()
+      .from(waterEntries)
+      .where(eq(waterEntries.userId, userId))
+      .orderBy(sql`${waterEntries.date} DESC`);
+  }
+
+  async getWaterEntriesByUserIdAndDate(userId: number, date: Date): Promise<WaterEntry[]> {
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return await db
+      .select()
+      .from(waterEntries)
+      .where(
+        and(
+          eq(waterEntries.userId, userId),
+          sql`${waterEntries.date} >= ${startDate} AND ${waterEntries.date} <= ${endDate}`
+        )
+      )
+      .orderBy(sql`${waterEntries.date} ASC`);
+  }
+
+  // Workout entry methods
+  async createWorkoutEntry(insertWorkoutEntry: InsertWorkoutEntry): Promise<WorkoutEntry> {
+    const [workoutEntry] = await db
+      .insert(workoutEntries)
+      .values(insertWorkoutEntry)
+      .returning();
+    
+    return workoutEntry;
+  }
+
+  async getWorkoutEntriesByUserId(userId: number): Promise<WorkoutEntry[]> {
+    return await db
+      .select()
+      .from(workoutEntries)
+      .where(eq(workoutEntries.userId, userId))
+      .orderBy(sql`${workoutEntries.date} DESC`);
+  }
+
+  async getWorkoutEntriesByUserIdAndDate(userId: number, date: Date): Promise<WorkoutEntry[]> {
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return await db
+      .select()
+      .from(workoutEntries)
+      .where(
+        and(
+          eq(workoutEntries.userId, userId),
+          sql`${workoutEntries.date} >= ${startDate} AND ${workoutEntries.date} <= ${endDate}`
+        )
+      )
+      .orderBy(sql`${workoutEntries.date} ASC`);
+  }
+
+  // Coach message methods
+  async createCoachMessage(insertCoachMessage: InsertCoachMessage): Promise<CoachMessage> {
+    const [coachMessage] = await db
+      .insert(coachMessages)
+      .values(insertCoachMessage)
+      .returning();
+    
+    return coachMessage;
+  }
+
+  async getCoachMessagesByUserId(userId: number): Promise<CoachMessage[]> {
+    return await db
+      .select()
+      .from(coachMessages)
+      .where(eq(coachMessages.userId, userId))
+      .orderBy(sql`${coachMessages.date} ASC`);
+  }
+
+  // Reset user data
+  async resetUserData(userId: number): Promise<void> {
+    // Delete all entries for this user in parallel
+    await Promise.all([
+      db.delete(weightLogs).where(eq(weightLogs.userId, userId)),
+      db.delete(foodEntries).where(eq(foodEntries.userId, userId)),
+      db.delete(waterEntries).where(eq(waterEntries.userId, userId)),
+      db.delete(workoutEntries).where(eq(workoutEntries.userId, userId)),
+      db.delete(coachMessages).where(eq(coachMessages.userId, userId))
+    ]);
+  }
 }
 
-export const storage = new MemStorage();
+// Export a DatabaseStorage instance
+export const storage = new DatabaseStorage();

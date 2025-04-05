@@ -26,7 +26,7 @@ export const users = pgTable("users", {
 // Weight log
 export const weightLogs = pgTable("weight_logs", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   weight: real("weight").notNull(),
   date: timestamp("date").defaultNow(),
 });
@@ -34,7 +34,7 @@ export const weightLogs = pgTable("weight_logs", {
 // Food entry
 export const foodEntries = pgTable("food_entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text("name").notNull(),
   calories: integer("calories").notNull(),
   protein: real("protein").notNull(), // in grams
@@ -50,7 +50,7 @@ export const foodEntries = pgTable("food_entries", {
 // Water entry
 export const waterEntries = pgTable("water_entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   amount: integer("amount").notNull(), // in ml
   date: timestamp("date").defaultNow(),
 });
@@ -58,7 +58,7 @@ export const waterEntries = pgTable("water_entries", {
 // Workout entry
 export const workoutEntries = pgTable("workout_entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text("name").notNull(),
   duration: integer("duration").notNull(), // in minutes
   caloriesBurned: integer("calories_burned").notNull(),
@@ -69,7 +69,7 @@ export const workoutEntries = pgTable("workout_entries", {
 // Coach chat messages
 export const coachMessages = pgTable("coach_messages", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   message: text("message").notNull(),
   isUser: boolean("is_user").notNull(), // true if message from user, false if from AI
   date: timestamp("date").defaultNow(),
